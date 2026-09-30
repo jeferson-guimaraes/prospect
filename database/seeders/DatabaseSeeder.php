@@ -12,14 +12,19 @@ class DatabaseSeeder extends Seeder
 
     /**
      * Seed the application's database.
+     *
+     * Como o cadastro público está desabilitado, o usuário inicial é criado
+     * aqui a partir das variáveis SEED_USER_* do .env.
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        User::query()->firstOrCreate(
+            ['email' => config('seed.user.email')],
+            [
+                'name' => config('seed.user.name'),
+                'password' => config('seed.user.password'),
+                'email_verified_at' => now(),
+            ],
+        );
     }
 }
