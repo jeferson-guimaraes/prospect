@@ -2,10 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\GeminiApiException;
+use App\Exceptions\GeminiInvalidResponseException;
+use App\Http\Requests\GerarDiagnosticoRequest;
 use App\Http\Requests\StoreProspeccaoRequest;
 use App\Http\Requests\UpdateProspeccaoRequest;
 use App\Models\Prospeccao;
 use App\Services\ProspeccaoService;
+use App\Services\ProspectDiagnosisService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -28,6 +33,7 @@ class ProspeccaoController extends Controller
 
     public function __construct(
         private ProspeccaoService $prospeccaoService,
+        private ProspectDiagnosisService $prospectDiagnosisService,
     ) {}
 
     /**
@@ -107,6 +113,26 @@ class ProspeccaoController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Prospect excluído com sucesso!']);
 
         return $this->redirectToIndex();
+    }
+
+    /**
+     * Gera o diagnóstico operacional de um prospect com IA.
+     *
+     * Retorna HTTP 422 com mensagem descritiva quando a API falha ou retorna dados inválidos.
+     */
+    public function gerarDiagnostico(GerarDiagnosticoRequest $request): JsonResponse
+    {
+        try {
+            return response()->json(
+                $this->prospectDiagnosisService->generate($request->validated()),
+            );
+        } catch (GeminiApiException|GeminiInvalidResponseException $e) {
+            report($e);
+
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 
     /**
