@@ -24,10 +24,6 @@ class ProspeccaoTest extends TestCase
     {
         parent::setUp();
 
-        // As páginas prospects/* ainda não foram portadas para este projeto.
-        // Remover quando o frontend do módulo existir.
-        config(['inertia.testing.ensure_pages_exist' => false]);
-
         $this->user = User::factory()->create();
         $this->actingAs($this->user);
 
