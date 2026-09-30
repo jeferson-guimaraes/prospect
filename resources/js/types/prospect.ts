@@ -33,6 +33,14 @@ export type Prospect = {
     timelines?: ProspectTimeline[];
 };
 
+export type ProspectDiagnosis = {
+    possiveis_dores: string;
+    oportunidades_identificadas: string;
+    perguntas_para_descoberta: string;
+    sugestao_primeiro_contato: string;
+    lead_score: number | null;
+};
+
 export type PaginationLink = {
     url: string | null;
     label: string;

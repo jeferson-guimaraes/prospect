@@ -10,8 +10,14 @@ import {
     Trash2,
     User,
 } from 'lucide-react';
-import type { ComponentProps, ComponentType, ReactNode } from 'react';
+import {
+    useState,
+    type ComponentProps,
+    type ComponentType,
+    type ReactNode,
+} from 'react';
 import InputError from '@/components/input-error';
+import ProspectDiagnosisSection from '@/components/prospect-diagnosis-section';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,6 +35,7 @@ import {
     CANAL_CONTATO_VALUES,
 } from '@/lib/canal-contato';
 import { toDateTimeLocal } from '@/lib/format';
+import { HttpError, postJson } from '@/lib/http';
 import { maskTelefone } from '@/lib/masks';
 import {
     buildProspectsIndexUrl,
@@ -39,8 +46,8 @@ import {
     RETORNO_CONTATO_VALUES,
     getRetornoVariant,
 } from '@/lib/prospect-retorno';
-import { store, update } from '@/routes/prospects';
-import type { Prospect } from '@/types';
+import { diagnostico, store, update } from '@/routes/prospects';
+import type { Prospect, ProspectDiagnosis } from '@/types';
 
 type TimelineFormData = {
     id?: number;
@@ -48,7 +55,7 @@ type TimelineFormData = {
     data_observacao: string;
 };
 
-type ProspectFormData = {
+type ProspectFormData = ProspectDiagnosis & {
     nome: string;
     contato_responsavel: string;
     whatsapp: string;
@@ -104,11 +111,22 @@ function IconInput({
 }
 
 export default function ProspectForm({ prospect }: ProspectFormProps) {
+    const [generatingDiagnosis, setGeneratingDiagnosis] = useState(false);
+    const [diagnosisError, setDiagnosisError] = useState<string | null>(null);
+
     const { data, setData, submit, transform, processing, errors } =
         useForm<ProspectFormData>(
             prospect ? update.patch(prospect.id) : store(),
             {
                 nome: prospect?.nome ?? '',
+                possiveis_dores: prospect?.possiveis_dores ?? '',
+                oportunidades_identificadas:
+                    prospect?.oportunidades_identificadas ?? '',
+                perguntas_para_descoberta:
+                    prospect?.perguntas_para_descoberta ?? '',
+                sugestao_primeiro_contato:
+                    prospect?.sugestao_primeiro_contato ?? '',
+                lead_score: prospect?.lead_score ?? null,
                 contato_responsavel: prospect?.contato_responsavel ?? '',
                 whatsapp: prospect?.whatsapp ?? '',
                 instagram: prospect?.instagram ?? '',
@@ -158,6 +176,53 @@ export default function ProspectForm({ prospect }: ProspectFormProps) {
                 i === index ? { ...timeline, ...changes } : timeline,
             ),
         );
+    };
+
+    const canGenerateDiagnosis =
+        data.nome.trim() !== '' &&
+        (data.site.trim() !== '' || data.instagram.trim() !== '');
+
+    const generateDiagnosis = async () => {
+        setGeneratingDiagnosis(true);
+        setDiagnosisError(null);
+
+        try {
+            const result = await postJson<ProspectDiagnosis>(
+                diagnostico.url(),
+                {
+                    nome: data.nome,
+                    site: data.site,
+                    instagram: data.instagram,
+                    whatsapp: data.whatsapp,
+                    contato_responsavel: data.contato_responsavel,
+                    email: data.email,
+                    canal_contato: data.canal_contato,
+                    timelines: data.timelines,
+                    prospect_id: prospect?.id ?? null,
+                },
+                'Não foi possível gerar o diagnóstico.',
+            );
+
+            setData((current) => ({
+                ...current,
+                possiveis_dores: result.possiveis_dores ?? '',
+                oportunidades_identificadas:
+                    result.oportunidades_identificadas ?? '',
+                perguntas_para_descoberta:
+                    result.perguntas_para_descoberta ?? '',
+                sugestao_primeiro_contato:
+                    result.sugestao_primeiro_contato ?? '',
+                lead_score: result.lead_score ?? null,
+            }));
+        } catch (error) {
+            setDiagnosisError(
+                error instanceof HttpError
+                    ? error.validationMessage || error.message
+                    : 'Não foi possível gerar o diagnóstico.',
+            );
+        } finally {
+            setGeneratingDiagnosis(false);
+        }
     };
 
     const cancelHref = buildProspectsIndexUrl(loadProspectFilters());
@@ -212,7 +277,8 @@ export default function ProspectForm({ prospect }: ProspectFormProps) {
                     Canais de Contato
                 </legend>
                 <p className="text-sm text-muted-foreground">
-                    Informe ao menos um canal: WhatsApp, Instagram ou e-mail.
+                    Informe ao menos um canal. Site e Instagram alimentam o
+                    diagnóstico com IA.
                 </p>
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <FieldGroup>
@@ -269,6 +335,15 @@ export default function ProspectForm({ prospect }: ProspectFormProps) {
                     </FieldGroup>
                 </div>
             </fieldset>
+
+            <ProspectDiagnosisSection
+                diagnosis={data}
+                errors={errors}
+                canGenerate={canGenerateDiagnosis}
+                generating={generatingDiagnosis}
+                error={diagnosisError}
+                onGenerate={generateDiagnosis}
+            />
 
             <fieldset className="space-y-6 rounded-xl border bg-card p-6 shadow-sm">
                 <legend className="flex items-center gap-2 px-2 text-lg font-medium text-primary">
